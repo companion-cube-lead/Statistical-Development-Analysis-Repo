@@ -23,9 +23,45 @@ RegularFlow <- RegularFlow[author.displayName %in% developers]
 development_hours <- RegularFlow[fromString == "In Progress"][, .(reported_dev = sum(diff_hours)/24), by = .(sprint_name, storypoints, current_issue_type, author.displayName, component, issues.key)]
 ```
 
+We'll grab z-scores and see how our distribution is looking 
+
+```{r}
+plot(density(na.omit(development_hours$reported_dev)))
+```
+
+Since there is skewness, we will transform the y variable to correct for it. 
+
+```{r}
+plot(density(na.omit(log(development_hours$reported_dev))))
 
 
-```{r, functions}
+```
+
+There is a bimodal distribution in the hours reported. Now let's check the distrubution without the large outliers
+
+```{r}
+development_hours[, zscore := scale(reported_dev)]# use scale to get zscores
+
+development_hours[ reported_dev <= 15] # tickets which stay in progress for more than 15 days will not be considered
+```
+
+Some of the observations have days in which they are in progress, which seem very unlikely for the problem we're trying to model. We will omit these from the dataset for now.
+
+```{r}
+
+treshold <- 15
+
+development_hours <- development_hours[ reported_dev <= treshold]
+
+cat("This dataframe has", nrow(development_hours), "observations with ticket which stayed in progress for more than", treshold, "days removed.")
+```
+
+
+
+
+
+
+```{r, subset data modeling functions}
 
 # create a function to get list of dataframes by developer 
 get_developer_data <- function(data, developer) {
@@ -40,10 +76,11 @@ developer_dataframe_profiles <- lapply(developers, get_developer_data, data = de
 
 # create an lm function with error handling
 
-fit_lms <- function(developer_profiles){
+fit_lms <- function(developer_profiles, formula){
   
   #get the summary with the formula, formula is hardcoded here!
-  summary(tryCatch(lm(reported_dev ~ 1 + storypoints, data = developer_profiles), error = function(e) NULL )) # fit the model
+  summary(tryCatch(lm(formula, offset = rep(1, length(storypoints)), data = developer_profiles), error = function(e) NULL )) # fit the model
+  # need to look into forcing intercept
   
 }
 
@@ -51,7 +88,7 @@ fit_lms <- function(developer_profiles){
 
 
 # now we apply the linear model to each of the dataframes to return a list of lms
-developer_lms <- lapply(developer_dataframe_profiles, fit_lms)
+developer_lms <- lapply(developer_dataframe_profiles, fit_lms, formula = log(reported_dev) ~ storypoints)
 
 
 extract_metadata <- function(lm_summary){
@@ -62,7 +99,7 @@ extract_metadata <- function(lm_summary){
   
   adjusted_rsquared <- lm_summary$adj.r.squared
   
-  ftest <- lm_summary$fstatistic
+  ftest <- pf(lm_summary$fstatistic[1], lm_summary$fstatistic[2], lm_summary$fstatistic[3], lower.tail = FALSE)
   
   model_metadata <- as.data.table( cbind(coeffs, r_squared, adjusted_rsquared, ftest))
   
@@ -87,7 +124,7 @@ metadata_list_filtered <- Filter(function(x) length(x) > 1, metadata_list_named)
 
 
 
-metadata <- metadata_table <- rbindlist(metadata_list_filtered)
+metadata_table <- rbindlist(metadata_list_filtered)
 
 tags_intercept <- as.data.frame( rep(c('intercept', 'storypoints'), nrow(metadata_table)/2 ))
 
@@ -98,9 +135,17 @@ setnames(metadata_table, "V2", "developer")
 
 setnames(metadata_table,'rep(c("intercept", "storypoints"), nrow(metadata_table)/2)', 'tags')
 
+setnames(metadata_table,'Pr(>|t|)', "p_value")
 
-metadata_table
 
+#need to convert back from log
+metadata_table[, estimate_original := 1/log(estimate_original)]
+
+metadata_table[tags == 'intercept'][order(estimate_original)]
+
+metadata_table[ftest <= 0.10 & tags == 'storypoints'][order(estimate_original)]
 
 ```
+
+
 
