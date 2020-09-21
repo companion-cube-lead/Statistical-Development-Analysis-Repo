@@ -1,0 +1,106 @@
+---
+title: "Applying Linear Models to Development with Adjusted Intercepts"
+author: "Anders Vargas"
+date: "9/16/2020"
+output: html_document
+---
+
+```{r setup}
+library(data.table)
+```
+
+
+```{r getdata}
+RegularFlow <- fread("RegularFlow.csv")
+
+#only grab devs
+developers <- c('Alden Sharp','Alexander Strauss', 'Asha Jainand', 'Carson Ferraro', 'Jon Schipani', 'Jose Jarquin', 'Juan Altamonte', 'Pamela Bulu', 'Pedro Ortiz Rodriguez', 'Thapani Saweangsri', 'Vimal Kumar Sekar', 'Walker Carr')
+
+RegularFlow <- RegularFlow[author.displayName %in% developers]
+#filter onn developer list
+
+# only pick up stories moving into in Progress
+development_hours <- RegularFlow[fromString == "In Progress"][, .(reported_dev = sum(diff_hours)/24), by = .(sprint_name, storypoints, current_issue_type, author.displayName, component, issues.key)]
+```
+
+
+
+```{r, functions}
+
+# create a function to get list of dataframes by developer 
+get_developer_data <- function(data, developer) {
+  
+  data[author.displayName == developer]
+  
+}
+
+
+# apply function to list of developers
+developer_dataframe_profiles <- lapply(developers, get_developer_data, data = development_hours)
+
+# create an lm function with error handling
+
+fit_lms <- function(developer_profiles){
+  
+  #get the summary with the formula, formula is hardcoded here!
+  summary(tryCatch(lm(reported_dev ~ 1 + storypoints, data = developer_profiles), error = function(e) NULL )) # fit the model
+  
+}
+
+#need to add developers to summary
+
+
+# now we apply the linear model to each of the dataframes to return a list of lms
+developer_lms <- lapply(developer_dataframe_profiles, fit_lms)
+
+
+extract_metadata <- function(lm_summary){
+    
+  coeffs <- lm_summary$coefficients
+  
+  r_squared <- lm_summary$r.squared
+  
+  adjusted_rsquared <- lm_summary$adj.r.squared
+  
+  ftest <- lm_summary$fstatistic
+  
+  model_metadata <- as.data.table( cbind(coeffs, r_squared, adjusted_rsquared, ftest))
+  
+  model_metadata
+}
+
+```
+
+
+``` {r, cleaning up table}
+metadata_list <- lapply(developer_lms, function(X){
+  
+tryCatch(extract_metadata(X), error = function(e) NULL )
+  
+})
+
+metadata_list_named <- Map(cbind, metadata_list, developers)
+
+metadata_list_named <- lapply(metadata_list_named, as.data.table)
+
+metadata_list_filtered <- Filter(function(x) length(x) > 1, metadata_list_named)
+
+
+
+metadata <- metadata_table <- rbindlist(metadata_list_filtered)
+
+tags_intercept <- as.data.frame( rep(c('intercept', 'storypoints'), nrow(metadata_table)/2 ))
+
+metadata_table <- cbind(metadata_table, tags_intercept)
+
+
+setnames(metadata_table, "V2", "developer")
+
+setnames(metadata_table,'rep(c("intercept", "storypoints"), nrow(metadata_table)/2)', 'tags')
+
+
+metadata_table
+
+
+```
+
