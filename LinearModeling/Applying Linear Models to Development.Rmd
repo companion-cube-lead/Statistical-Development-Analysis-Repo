@@ -32,7 +32,7 @@ plot(density(na.omit(development_hours$reported_dev)))
 Since there is skewness, we will transform the y variable to correct for it. 
 
 ```{r}
-plot(density(na.omit(log(development_hours$reported_dev))))
+plot(density(na.omit(log10(development_hours$reported_dev))))
 
 
 ```
@@ -64,15 +64,15 @@ cat("This dataframe has", nrow(development_hours), "observations with ticket whi
 ```{r, subset data modeling functions}
 
 # create a function to get list of dataframes by developer 
-get_developer_data <- function(data, developer) {
-  
-  data[author.displayName == developer]
+get_subsets_data <- function(data, value, column_name) {
+  data <- as.data.table(data)
+  data[get(column_name) == value]
   
 }
 
 
 # apply function to list of developers
-developer_dataframe_profiles <- lapply(developers, get_developer_data, data = development_hours)
+developer_dataframe_profiles <- lapply(developers, get_subsets_data, data = development_hours, column_name = 'author.displayName')
 
 # create an lm function with error handling
 
@@ -88,7 +88,7 @@ fit_lms <- function(developer_profiles, formula){
 
 
 # now we apply the linear model to each of the dataframes to return a list of lms
-developer_lms <- lapply(developer_dataframe_profiles, fit_lms, formula = log(reported_dev) ~ storypoints)
+developer_lms <- lapply(developer_dataframe_profiles, fit_lms, formula = log10(reported_dev) ~ storypoints)
 
 
 extract_metadata <- function(lm_summary){
@@ -144,6 +144,78 @@ metadata_table[, estimate_original := 1/log(estimate_original)]
 metadata_table[tags == 'intercept'][order(estimate_original)]
 
 metadata_table[ftest <= 0.10 & tags == 'storypoints'][order(estimate_original)]
+
+```
+
+
+```{r, general function}
+
+
+get_lm_metadata <- function(data, filter_vector, column_name_target, lm_formula) {
+  
+data_profiles <- lapply(filter_vector, get_subsets_data, data = development_hours, column_name = column_name_target)
+
+lm_profiles <- lapply(data_profiles, fit_lms, formula = lm_formula)
+
+metadata_list <- lapply(lm_profiles, function(X){
+  
+tryCatch(extract_metadata(X), error = function(e) NULL )
+  
+})
+  
+
+
+metadata_list_named <- Map(cbind, metadata_list, filter_vector)
+
+
+metadata_list_named <- lapply(metadata_list_named, as.data.table)
+
+metadata_list_filtered <- Filter(function(x) length(x) > 1, metadata_list_named)
+
+
+
+metadata_table <- rbindlist(metadata_list_filtered)
+
+tags_intercept <- as.data.frame( rep(c('intercept', 'storypoints'), nrow(metadata_table)/2 ))
+
+metadata_table <- cbind(metadata_table, tags_intercept)
+
+
+setnames(metadata_table, "V2", column_name_target)
+
+setnames(metadata_table,'rep(c("intercept", "storypoints"), nrow(metadata_table)/2)', 'tags')
+
+setnames(metadata_table,'Pr(>|t|)', "p_value")
+
+
+#need to convert back from log
+metadata_table[, estimate_original := 10*(Estimate)]
+
+as.data.table(metadata_table)
+
+#metadata_table[ftest <= 0.10 & tags == 'storypoints'][order(estimate_original)]
+
+}
+```
+
+
+Now we can use the general function to pull all of our metadata
+```{r}
+
+# same metadata as before, but now we can just call our list of devs and the target column to get our metadata 
+developer_profiles <- get_lm_metadata(development_hours, developers, 'author.displayName', lm_formula =  log10(reported_dev) ~ storypoints)
+
+developer_profiles[tags == 'storypoints'][ftest <= 0.10]
+
+
+components <- c('Faculty / Staff Pod', 'myBullsPath', 'Offshore', 'Platform', 'ReturntoCampus', 'Student Value')
+
+# now we can do the same for components
+
+
+team_profiles <- get_lm_metadata(development_hours, components, 'component', lm_formula =  log10(reported_dev) ~ storypoints)
+
+team_profiles[tags == 'storypoints'][ftest <= 0.10]
 
 ```
 
