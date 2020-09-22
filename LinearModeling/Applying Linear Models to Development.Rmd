@@ -200,7 +200,7 @@ as.data.table(metadata_table)
 
 
 Now we can use the general function to pull all of our metadata
-```{r}
+```{r, unified function}
 
 # same metadata as before, but now we can just call our list of devs and the target column to get our metadata 
 developer_profiles <- get_lm_metadata(development_hours, developers, 'author.displayName', lm_formula =  log10(reported_dev) ~ storypoints)
