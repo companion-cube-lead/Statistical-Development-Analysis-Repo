@@ -1,1 +1,1 @@
-This directory is dedicated to the extraction of data from Jira's API and cleaning it using the RegularFlow logic.
+This directory is dedicated to the extraction of data from Jira's API and cleaning it using the RegularFlow logic. To kick off the automation process, it is necessary to call the ScheduledScript.R and ScheduledAzureUpload.R script in your system's crontab. 
