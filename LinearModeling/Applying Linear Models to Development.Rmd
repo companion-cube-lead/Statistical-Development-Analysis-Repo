@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup}
 library(data.table)
+library(ggplot2)
 ```
 
 
@@ -37,6 +38,14 @@ plot(density(na.omit(log10(development_hours$reported_dev))))
 
 ```
 
+```{r}
+ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color = storypoints)) +
+  geom_point() + 
+  geom_smooth(method = 'lm') +
+  facet_wrap(author.displayName~.) + ggtitle("Fitted Linear Models by Developer")
+```
+
+
 There is a bimodal distribution in the hours reported. Now let's check the distrubution without the large outliers
 
 ```{r}
@@ -44,6 +53,9 @@ development_hours[, zscore := scale(reported_dev)]# use scale to get zscores
 
 development_hours[ reported_dev <= 15] # tickets which stay in progress for more than 15 days will not be considered
 ```
+
+
+
 
 Some of the observations have days in which they are in progress, which seem very unlikely for the problem we're trying to model. We will omit these from the dataset for now.
 
@@ -56,9 +68,22 @@ development_hours <- development_hours[ reported_dev <= treshold]
 cat("This dataframe has", nrow(development_hours), "observations with ticket which stayed in progress for more than", treshold, "days removed.")
 ```
 
+```{r}
+ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color = storypoints)) +
+  geom_point() + 
+  geom_smooth(method = 'lm') +
+  facet_wrap(author.displayName~.) + ggtitle("Fitted Linear Models by Developer")
+```
 
 
 
+
+```{r}
+ggplot(development_hours, aes(y=log10(reported_dev), x = as.numeric(storypoints), color = storypoints)) +
+  geom_point() + 
+  geom_smooth(method = 'lm') +
+  facet_wrap(author.displayName~.) + ggtitle("Fitted Linear Models by Developer Transformation")
+```
 
 
 ```{r, subset data modeling functions}
@@ -139,7 +164,7 @@ setnames(metadata_table,'Pr(>|t|)', "p_value")
 
 
 #need to convert back from log
-metadata_table[, estimate_original := 1/log(estimate_original)]
+metadata_table[, estimate_original := 1/log(Estimate)]
 
 metadata_table[tags == 'intercept'][order(estimate_original)]
 
@@ -192,7 +217,8 @@ setnames(metadata_table,'Pr(>|t|)', "p_value")
 metadata_table[, estimate_original := 10*(Estimate)]
 
 as.data.table(metadata_table)
-
+# enable flexibility to get unstraformed estimate
+# some column names are not making sense
 #metadata_table[ftest <= 0.10 & tags == 'storypoints'][order(estimate_original)]
 
 }
