@@ -2,43 +2,52 @@
 title: "Applying Linear Models to Development with Adjusted Intercepts"
 author: "Anders Vargas"
 date: "9/16/2020"
-output: html_document
+output:
+  md_document:
+    variant: markdown_github
 ---
 
-```{r setup}
+```{r setup, message=FALSE}
 library(data.table)
 library(ggplot2)
 ```
 
-
+Our Regular Flow dataframe encompasses all the changes done against tickets, including the time it takes for them to move between swimlanes  
 ```{r getdata}
 RegularFlow <- fread("RegularFlow.csv")
+```
 
+Since our research question only concerns development, we will use a list given to use by a product owners of assignees we know are developers.
+```{r prepare data}
 #only grab devs
 developers <- c('Alden Sharp','Alexander Strauss', 'Asha Jainand', 'Carson Ferraro', 'Jon Schipani', 'Jose Jarquin', 'Juan Altamonte', 'Pamela Bulu', 'Pedro Ortiz Rodriguez', 'Thapani Saweangsri', 'Vimal Kumar Sekar', 'Walker Carr')
 
 RegularFlow <- RegularFlow[author.displayName %in% developers]
 #filter onn developer list
 
-# only pick up stories moving into in Progress
+# only pick up stories moving into in Progress, need to divide by 24 to get days, aggregate on ticket and other information
 development_hours <- RegularFlow[fromString == "In Progress"][, .(reported_dev = sum(diff_hours)/24), by = .(sprint_name, storypoints, current_issue_type, author.displayName, component, issues.key)]
 ```
 
-We'll grab z-scores and see how our distribution is looking 
 
-```{r}
-plot(density(na.omit(development_hours$reported_dev)))
-```
-
-Since there is skewness, we will transform the y variable to correct for it. 
-
-```{r}
-plot(density(na.omit(log10(development_hours$reported_dev))))
-
+Looking at the density plots can help us see whether we are fulfilling the asumptions for normality.
+```{r density original}
+ggplot(development_hours, aes(x = reported_dev, fill =  as.factor(storypoints))) +
+  geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked)")
 
 ```
 
-```{r}
+
+With the transformation, we can see the 'corrected' distribution of reported development, although it's not entirely normal.
+```{r density transformed}
+
+ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypoints))) +
+  geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked and Log Transform)")
+
+```
+
+We can fit the lm model visually 
+```{r scatterplots by dev}
 ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color = storypoints)) +
   geom_point() + 
   geom_smooth(method = 'lm') +
@@ -46,20 +55,16 @@ ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color
 ```
 
 
-There is a bimodal distribution in the hours reported. Now let's check the distrubution without the large outliers
-
-```{r}
-development_hours[, zscore := scale(reported_dev)]# use scale to get zscores
-
-development_hours[ reported_dev <= 15] # tickets which stay in progress for more than 15 days will not be considered
+There are alot of outliers which don't seem realistic for this dataset (like 50 days in development), so we'll see how many issues have reported development over 15 days
+```{r outliers}
+nrow(development_hours[ reported_dev >= 15]) # tickets which stay in progress for more than 15 days will not be considered
 ```
 
 
 
+53 of the observations have days in which they are in progress for more than 15 days, which seem very unlikely for the question we're asking. We will omit these from the dataset for now.
 
-Some of the observations have days in which they are in progress, which seem very unlikely for the problem we're trying to model. We will omit these from the dataset for now.
-
-```{r}
+```{r treshold}
 
 treshold <- 15
 
@@ -68,23 +73,34 @@ development_hours <- development_hours[ reported_dev <= treshold]
 cat("This dataframe has", nrow(development_hours), "observations with ticket which stayed in progress for more than", treshold, "days removed.")
 ```
 
+With the outliers removed, we see a bimodal distribution emerge from our storypoints, which is surprising since we see it across all the storypoint categories
 ```{r}
+ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypoints))) +
+  geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked and Log Transform)")
+```
+
+
+```{r stacked density by developer}
+ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypoints))) +
+  geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked and Log Transform)") + facet_wrap(author.displayName~.)
+```
+
+Across all the developers in our list, we see that some developers are more consistent in terms of the distribution of how they point than others.
+
+If we visualize the transformation applied unto the scatterplots, we can glean that it helps in terms of having more points lie on the line. 
+```{r scatterplot transformations}
 ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color = storypoints)) +
   geom_point() + 
   geom_smooth(method = 'lm') +
   facet_wrap(author.displayName~.) + ggtitle("Fitted Linear Models by Developer")
 ```
 
+We need to be able to combine the results from our model so we can interpret it. We'll create a few functions to do this: 
 
-
-
-```{r}
-ggplot(development_hours, aes(y=log10(reported_dev), x = as.numeric(storypoints), color = storypoints)) +
-  geom_point() + 
-  geom_smooth(method = 'lm') +
-  facet_wrap(author.displayName~.) + ggtitle("Fitted Linear Models by Developer Transformation")
-```
-
+1) Subset data based on the value we want to subset on (author in this case)
+2) Function to fit the model
+3) Get metadata
+4) Produce table
 
 ```{r, subset data modeling functions}
 
@@ -133,7 +149,7 @@ extract_metadata <- function(lm_summary){
 
 ```
 
-
+The rest of the functions are dedicated to naming the columns and make them readable.
 ``` {r, cleaning up table}
 metadata_list <- lapply(developer_lms, function(X){
   
@@ -172,7 +188,7 @@ metadata_table[ftest <= 0.10 & tags == 'storypoints'][order(estimate_original)]
 
 ```
 
-
+Since we need to be able to apply this function to different sets of data, not just developers, we'll create a uniform function, get_lm_metadata, so that an end_user can use this to explore other dimensions.
 ```{r, general function}
 
 
@@ -214,7 +230,7 @@ setnames(metadata_table,'Pr(>|t|)', "p_value")
 
 
 #need to convert back from log
-metadata_table[, estimate_original := 10*(Estimate)]
+metadata_table[, estimate_original_units := 10*(Estimate)]
 
 as.data.table(metadata_table)
 # enable flexibility to get unstraformed estimate
@@ -225,7 +241,7 @@ as.data.table(metadata_table)
 ```
 
 
-Now we can use the general function to pull all of our metadata
+Now we can use the general function to pull all of our metadata. As a reminder: Our entire model is significant only if the ftest is lower than our alpha value, so we need to filter on below α to see the signicant models for our profiles of data. To use this function, we would just need to source the function from the file again to use it again.
 ```{r, unified function}
 
 # same metadata as before, but now we can just call our list of devs and the target column to get our metadata 
