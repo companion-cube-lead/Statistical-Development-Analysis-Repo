@@ -74,13 +74,13 @@ cat("This dataframe has", nrow(development_hours), "observations with ticket whi
 ```
 
 With the outliers removed, we see a bimodal distribution emerge from our storypoints, which is surprising since we see it across all the storypoint categories
-```{r}
+```{r message=FALSE, warning=FALSE}
 ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypoints))) +
   geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked and Log Transform)")
 ```
 
 
-```{r stacked density by developer}
+```{r stacked density by developer, message=FALSE, warning=FALSE}
 ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypoints))) +
   geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked and Log Transform)") + facet_wrap(author.displayName~.)
 ```
@@ -88,7 +88,7 @@ ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypo
 Across all the developers in our list, we see that some developers are more consistent in terms of the distribution of how they point than others.
 
 If we visualize the transformation applied unto the scatterplots, we can glean that it helps in terms of having more points lie on the line. 
-```{r scatterplot transformations}
+```{r scatterplot transformations, message=FALSE, warning=FALSE}
 ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color = storypoints)) +
   geom_point() + 
   geom_smooth(method = 'lm') +
