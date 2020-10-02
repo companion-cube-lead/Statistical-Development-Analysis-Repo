@@ -63,3 +63,4 @@ module purge
 
 ```
 
+Finally, this script will need to be added to the crontab for it to be ran on a schedule.
