@@ -1,9 +1,8 @@
 ``` r
 library(data.table)
 library(ggplot2)
+library(ggResidpanel)
 ```
-
-    ## Warning: package 'ggplot2' was built under R version 3.6.3
 
 Our Regular Flow dataframe encompasses all the changes done against
 tickets, including the time it takes for them to move between swimlanes
@@ -41,7 +40,7 @@ ggplot(development_hours, aes(x = reported_dev, fill =  as.factor(storypoints)))
 
     ## Warning: Removed 1 rows containing missing values (position_stack).
 
-![](Applying-Linear-Models-to-Development_files/figure-markdown_github/density%20original-1.png)
+![](Applying-Linear-Models-to-Development_files/figure-gfm/density%20original-1.png)<!-- -->
 
 With the transformation, we can see the ‘corrected’ distribution of
 reported development, although it’s not entirely normal.
@@ -57,7 +56,7 @@ ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypo
 
     ## Warning: Removed 1 rows containing missing values (position_stack).
 
-![](Applying-Linear-Models-to-Development_files/figure-markdown_github/density%20transformed-1.png)
+![](Applying-Linear-Models-to-Development_files/figure-gfm/density%20transformed-1.png)<!-- -->
 
 We can fit the lm model visually
 
@@ -74,7 +73,7 @@ ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color
 
     ## Warning: Removed 1269 rows containing missing values (geom_point).
 
-![](Applying-Linear-Models-to-Development_files/figure-markdown_github/scatterplots%20by%20dev-1.png)
+![](Applying-Linear-Models-to-Development_files/figure-gfm/scatterplots%20by%20dev-1.png)<!-- -->
 
 There are alot of outliers which don’t seem realistic for this dataset
 (like 50 days in development), so we’ll see how many issues have
@@ -109,40 +108,14 @@ ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypo
   geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked and Log Transform)")
 ```
 
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Removed 1 rows containing missing values (position_stack).
-
-![](Applying-Linear-Models-to-Development_files/figure-markdown_github/unnamed-chunk-1-1.png)
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
 
 ``` r
 ggplot(development_hours, aes(x = log10(reported_dev), fill =  as.factor(storypoints))) +
   geom_density(position = "stack") + ggtitle("Distribution of Reported Development by Storypoints (Stacked and Log Transform)") + facet_wrap(author.displayName~.)
 ```
 
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Groups with fewer than two data points have been dropped.
-
-    ## Warning: Removed 10 rows containing missing values (position_stack).
-
-![](Applying-Linear-Models-to-Development_files/figure-markdown_github/stacked%20density%20by%20developer-1.png)
+![](Applying-Linear-Models-to-Development_files/figure-gfm/stacked%20density%20by%20developer-1.png)<!-- -->
 
 Across all the developers in our list, we see that some developers are
 more consistent in terms of the distribution of how they point than
@@ -158,22 +131,18 @@ ggplot(development_hours, aes(y=reported_dev, x = as.numeric(storypoints), color
   facet_wrap(author.displayName~.) + ggtitle("Fitted Linear Models by Developer")
 ```
 
-    ## `geom_smooth()` using formula 'y ~ x'
-
-    ## Warning: Removed 1238 rows containing non-finite values (stat_smooth).
-
-    ## Warning: Removed 1238 rows containing missing values (geom_point).
-
-![](Applying-Linear-Models-to-Development_files/figure-markdown_github/scatterplot%20transformations-1.png)
+![](Applying-Linear-Models-to-Development_files/figure-gfm/scatterplot%20transformations-1.png)<!-- -->
 
 We need to be able to combine the results from our model so we can
 interpret it. We’ll create a few functions to do this:
 
-1.  Subset data based on the value we want to subset on (author in this
+1)  Subset data based on the value we want to subset on (author in this
     case)
-2.  Function to fit the model
-3.  Get metadata
-4.  Produce table
+2)  Function to fit the model
+3)  Get metadata
+4)  Produce table
+
+<!-- end list -->
 
 ``` r
 # create a function to get list of dataframes by developer 
@@ -182,6 +151,7 @@ get_subsets_data <- function(data, value, column_name) {
   data[get(column_name) == value]
   
 }
+# may need to be modified 
 
 
 # apply function to list of developers
@@ -396,3 +366,349 @@ team_profiles[tags == 'storypoints'][ftest <= 0.10]
     ## 1: 1.366028e-09 Faculty / Staff Pod storypoints                5.191560
     ## 2: 3.230796e-05         myBullsPath storypoints                3.076459
     ## 3: 5.429843e-02      ReturntoCampus storypoints                4.480223
+
+One last step: We’ll use the resid panel function to examine whether the
+assumptions of the model are being violated. It looks like the log
+transformation does make sense for correcting some heteroscedacity.
+
+``` r
+get_model <- function(developer_profiles, formula){
+  
+    tryCatch(lm(formula, offset = rep(1, length(storypoints)), data = developer_profiles), error = function(e) NULL ) # fit the model
+
+  
+}
+
+developer_lms_log <- lapply(developer_dataframe_profiles, get_model, formula = log10(reported_dev) ~ storypoints)
+
+
+developer_lms_originalunits <- lapply(developer_dataframe_profiles, get_model, formula = reported_dev ~ storypoints)
+
+developer_lms_log
+```
+
+    ## [[1]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -1.0092       0.1191  
+    ## 
+    ## 
+    ## [[2]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -1.0105       0.0904  
+    ## 
+    ## 
+    ## [[3]]
+    ## NULL
+    ## 
+    ## [[4]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##      -1.388        0.159  
+    ## 
+    ## 
+    ## [[5]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -1.5706       0.2557  
+    ## 
+    ## 
+    ## [[6]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -1.6922       0.1784  
+    ## 
+    ## 
+    ## [[7]]
+    ## NULL
+    ## 
+    ## [[8]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -3.4417       0.4719  
+    ## 
+    ## 
+    ## [[9]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -1.8105       0.4075  
+    ## 
+    ## 
+    ## [[10]]
+    ## NULL
+    ## 
+    ## [[11]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##    -0.96457      0.04825  
+    ## 
+    ## 
+    ## [[12]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -1.0160       0.1244
+
+``` r
+developer_lms_originalunits
+```
+
+    ## [[1]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##      1.1833       0.5048  
+    ## 
+    ## 
+    ## [[2]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     0.06207      0.93166  
+    ## 
+    ## 
+    ## [[3]]
+    ## NULL
+    ## 
+    ## [[4]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##     -0.2474       0.5855  
+    ## 
+    ## 
+    ## [[5]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##      -1.106        1.051  
+    ## 
+    ## 
+    ## [[6]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##      1.1388       0.1316  
+    ## 
+    ## 
+    ## [[7]]
+    ## NULL
+    ## 
+    ## [[8]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##      -1.343        1.072  
+    ## 
+    ## 
+    ## [[9]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##      -1.109        1.568  
+    ## 
+    ## 
+    ## [[10]]
+    ## NULL
+    ## 
+    ## [[11]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##       4.612        0.014  
+    ## 
+    ## 
+    ## [[12]]
+    ## 
+    ## Call:
+    ## lm(formula = formula, data = developer_profiles, offset = rep(1, 
+    ##     length(storypoints)))
+    ## 
+    ## Coefficients:
+    ## (Intercept)  storypoints  
+    ##      1.0599       0.8541
+
+``` r
+resid_panel(developer_lms_log[[1]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[2]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-2.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[4]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-3.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[5]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-4.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[6]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-5.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[8]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-6.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[9]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-7.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[11]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-8.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_log[[12]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-3-9.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[1]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[2]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[4]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-3.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[5]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-4.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[6]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-5.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[8]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-6.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[9]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-7.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[11]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-8.png)<!-- -->
+
+``` r
+resid_panel(developer_lms_originalunits[[12]])
+```
+
+![](Applying-Linear-Models-to-Development_files/figure-gfm/unnamed-chunk-4-9.png)<!-- -->

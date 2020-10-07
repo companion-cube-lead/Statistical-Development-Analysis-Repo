@@ -4,12 +4,13 @@ author: "Anders Vargas"
 date: "9/16/2020"
 output:
   md_document:
-    variant: markdown_github
+    variant: gfm
 ---
 
 ```{r setup, message=FALSE}
 library(data.table)
 library(ggplot2)
+library(ggResidpanel)
 ```
 
 Our Regular Flow dataframe encompasses all the changes done against tickets, including the time it takes for them to move between swimlanes  
@@ -110,6 +111,7 @@ get_subsets_data <- function(data, value, column_name) {
   data[get(column_name) == value]
   
 }
+# may need to be modified 
 
 
 # apply function to list of developers
@@ -259,6 +261,71 @@ team_profiles <- get_lm_metadata(development_hours, components, 'component', lm_
 
 team_profiles[tags == 'storypoints'][ftest <= 0.10]
 
+```
+
+One last step: We'll use the resid panel function to examine whether the assumptions of the model are being violated. It looks like the log transformation does make sense for correcting some heteroscedacity.
+
+```{r}
+
+
+get_model <- function(developer_profiles, formula){
+  
+    tryCatch(lm(formula, offset = rep(1, length(storypoints)), data = developer_profiles), error = function(e) NULL ) # fit the model
+
+  
+}
+
+developer_lms_log <- lapply(developer_dataframe_profiles, get_model, formula = log10(reported_dev) ~ storypoints)
+
+
+developer_lms_originalunits <- lapply(developer_dataframe_profiles, get_model, formula = reported_dev ~ storypoints)
+
+developer_lms_log
+
+developer_lms_originalunits
+
+```
+
+
+``` {r}
+resid_panel(developer_lms_log[[1]])
+
+resid_panel(developer_lms_log[[2]])
+
+resid_panel(developer_lms_log[[4]])
+
+resid_panel(developer_lms_log[[5]])
+
+resid_panel(developer_lms_log[[6]])
+
+resid_panel(developer_lms_log[[8]])
+
+resid_panel(developer_lms_log[[9]])
+
+resid_panel(developer_lms_log[[11]])
+
+resid_panel(developer_lms_log[[12]])
+
+```
+
+```{r}
+resid_panel(developer_lms_originalunits[[1]])
+
+resid_panel(developer_lms_originalunits[[2]])
+
+resid_panel(developer_lms_originalunits[[4]])
+
+resid_panel(developer_lms_originalunits[[5]])
+
+resid_panel(developer_lms_originalunits[[6]])
+
+resid_panel(developer_lms_originalunits[[8]])
+
+resid_panel(developer_lms_originalunits[[9]])
+
+resid_panel(developer_lms_originalunits[[11]])
+
+resid_panel(developer_lms_originalunits[[12]])
 ```
 
 
