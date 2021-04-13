@@ -4,6 +4,6 @@ The repo provides evidence to support the intuition that storypoints are lineaer
 Furthermore, a combination of R packages are introduced to integrate it with existing cloud resources such as Azure and push it to external reporting tools such as PowerBi. 
 
 ## Authors
-[Anders Vargas](https://github.com/companion-cube-lead) , 
+[Anders Vargas](https://github.com/companion-cube-lead)
 
 [Armando Marquez](https://github.com/amarquezmazzeo)
